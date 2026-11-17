@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Callable, Generator, Generic, Iterable, cast
+from typing import TYPE_CHECKING, Any, Generic, cast
 
 from hatchling.builders.config import BuilderConfig, BuilderConfigBound, env_var_enabled
 from hatchling.builders.constants import EXCLUDED_DIRECTORIES, EXCLUDED_FILES, BuildEnvVars
@@ -11,13 +11,15 @@ from hatchling.builders.utils import get_relative_path, safe_walk
 from hatchling.plugin.manager import PluginManagerBound
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Generator, Iterable
+
     from hatchling.bridge.app import Application
     from hatchling.builders.hooks.plugin.interface import BuildHookInterface
     from hatchling.metadata.core import ProjectMetadata
 
 
 class IncludedFile:
-    __slots__ = ('distribution_path', 'path', 'relative_path')
+    __slots__ = ("distribution_path", "path", "relative_path")
 
     def __init__(self, path: str, relative_path: str, distribution_path: str) -> None:
         self.path = path
@@ -30,11 +32,20 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
     Example usage:
 
     ```python tab="plugin.py"
+    from hatchling.builders.config import BuilderConfig
     from hatchling.builders.plugin.interface import BuilderInterface
+    from hatchling.plugin.manager import PluginManager
 
 
-    class SpecialBuilder(BuilderInterface):
-        PLUGIN_NAME = 'special'
+    class SpecialBuilderConfig(BuilderConfig[PluginManager]): ...
+
+
+    class SpecialBuilder(BuilderInterface[SpecialBuilderConfig, PluginManager]):
+        PLUGIN_NAME = "special"
+
+        def get_config_class(self) -> type[SpecialBuilderConfig]:
+            return SpecialBuilderConfig
+
         ...
     ```
 
@@ -45,12 +56,12 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
 
 
     @hookimpl
-    def hatch_register_builder():
+    def hatch_register_builder() -> type[SpecialBuilder]:
         return SpecialBuilder
     ```
     """
 
-    PLUGIN_NAME = ''
+    PLUGIN_NAME = ""
     """The name used for selection."""
 
     def __init__(
@@ -58,7 +69,7 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
         root: str,
         plugin_manager: PluginManagerBound | None = None,
         config: dict[str, Any] | None = None,
-        metadata: ProjectMetadata | None = None,
+        metadata: ProjectMetadata[PluginManagerBound] | None = None,
         app: Application | None = None,
     ) -> None:
         self.__root = root
@@ -106,7 +117,7 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
             unknown_versions = set(versions) - set(version_api)
             if unknown_versions:
                 message = (
-                    f'Unknown versions for target `{self.PLUGIN_NAME}`: {", ".join(map(str, sorted(unknown_versions)))}'
+                    f"Unknown versions for target `{self.PLUGIN_NAME}`: {', '.join(map(str, sorted(unknown_versions)))}"
                 )
                 raise ValueError(message)
 
@@ -134,20 +145,20 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
             clean_hooks_after = env_var_enabled(BuildEnvVars.CLEAN_HOOKS_AFTER)
 
         for version in versions:
-            self.app.display_debug(f'Building `{self.PLUGIN_NAME}` version `{version}`')
+            self.app.display_debug(f"Building `{self.PLUGIN_NAME}` version `{version}`")
 
             build_data = self.get_default_build_data()
             self.set_build_data_defaults(build_data)
 
             # Allow inspection of configured build hooks and the order in which they run
-            build_data['build_hooks'] = tuple(configured_build_hooks)
+            build_data["build_hooks"] = tuple(configured_build_hooks)
 
             # Execute all `initialize` build hooks
             for build_hook in build_hooks:
                 build_hook.initialize(version, build_data)
 
             if hooks_only:
-                self.app.display_debug(f'Only ran build hooks for `{self.PLUGIN_NAME}` version `{version}`')
+                self.app.display_debug(f"Only ran build hooks for `{self.PLUGIN_NAME}` version `{version}`")
                 continue
 
             # Build the artifact
@@ -189,7 +200,7 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
             dirs[:] = sorted(d for d in dirs if not self.config.directory_is_excluded(d, relative_path))
 
             files.sort()
-            is_package = '__init__.py' in files
+            is_package = "__init__.py" in files
             for f in files:
                 if f in EXCLUDED_FILES:
                     continue
@@ -210,7 +221,7 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
             if os.path.isfile(source):
                 yield IncludedFile(
                     source,
-                    '' if external else os.path.relpath(source, self.root),
+                    "" if external else os.path.relpath(source, self.root),
                     self.config.get_distribution_path(target_path),
                 )
             elif os.path.isdir(source):
@@ -229,11 +240,11 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
                         if not self.config.path_is_reserved(distribution_path):
                             yield IncludedFile(
                                 os.path.join(root, f),
-                                '' if external else relative_file_path,
+                                "" if external else relative_file_path,
                                 distribution_path,
                             )
             else:
-                msg = f'Forced include not found: {source}'
+                msg = f"Forced include not found: {source}"
                 raise FileNotFoundError(msg)
 
     def recurse_explicit_files(self, inclusion_map: dict[str, str]) -> Iterable[IncludedFile]:
@@ -244,7 +255,7 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
                 if not self.config.path_is_reserved(distribution_path):
                     yield IncludedFile(
                         source,
-                        '' if external else os.path.relpath(source, self.root),
+                        "" if external else os.path.relpath(source, self.root),
                         self.config.get_distribution_path(target_path),
                     )
             elif os.path.isdir(source):
@@ -254,7 +265,7 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
                     dirs[:] = sorted(d for d in dirs if d not in EXCLUDED_DIRECTORIES)
 
                     files.sort()
-                    is_package = '__init__.py' in files
+                    is_package = "__init__.py" in files
                     for f in files:
                         if f in EXCLUDED_FILES:
                             continue
@@ -266,7 +277,7 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
 
                         if self.config.include_path(relative_file_path, explicit=True, is_package=is_package):
                             yield IncludedFile(
-                                os.path.join(root, f), '' if external else relative_file_path, distribution_path
+                                os.path.join(root, f), "" if external else relative_file_path, distribution_path
                             )
 
     @property
@@ -281,12 +292,12 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
         if self.__plugin_manager is None:
             from hatchling.plugin.manager import PluginManager
 
-            self.__plugin_manager = PluginManager()
+            self.__plugin_manager = cast(PluginManagerBound, PluginManager())
 
         return self.__plugin_manager
 
     @property
-    def metadata(self) -> ProjectMetadata:
+    def metadata(self) -> ProjectMetadata[PluginManagerBound]:
         if self.__metadata is None:
             from hatchling.metadata.core import ProjectMetadata
 
@@ -361,7 +372,7 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
         if self.__target_config is None:
             target_config: dict[str, Any] = self.metadata.hatch.build_targets.get(self.PLUGIN_NAME, {})
             if not isinstance(target_config, dict):
-                message = f'Field `tool.hatch.build.targets.{self.PLUGIN_NAME}` must be a table'
+                message = f"Field `tool.hatch.build.targets.{self.PLUGIN_NAME}` must be a table"
                 raise TypeError(message)
 
             self.__target_config = target_config
@@ -371,7 +382,7 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
     @property
     def project_id(self) -> str:
         if self.__project_id is None:
-            self.__project_id = f'{self.normalize_file_name_component(self.metadata.core.name)}-{self.metadata.version}'
+            self.__project_id = f"{self.normalize_file_name_component(self.metadata.core.name)}-{self.metadata.version}"
 
         return self.__project_id
 
@@ -382,7 +393,7 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
             if build_hook is None:
                 from hatchling.plugin.exceptions import UnknownPluginError
 
-                message = f'Unknown build hook: {hook_name}'
+                message = f"Unknown build hook: {hook_name}"
                 raise UnknownPluginError(message)
 
             configured_build_hooks[hook_name] = build_hook(
@@ -398,7 +409,7 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
         Each callable must have the following signature:
 
         ```python
-        def ...(build_dir: str, build_data: dict) -> str:
+        def ...(build_dir: str, **build_data: dict) -> str:
         ```
 
         The return value must be the absolute path to the built artifact.
@@ -417,8 +428,8 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
         return {}
 
     def set_build_data_defaults(self, build_data: dict[str, Any]) -> None:  # noqa: PLR6301
-        build_data.setdefault('artifacts', [])
-        build_data.setdefault('force_include', {})
+        build_data.setdefault("artifacts", [])
+        build_data.setdefault("force_include", {})
 
     def clean(self, directory: str, versions: list[str]) -> None:
         """
@@ -427,15 +438,15 @@ class BuilderInterface(ABC, Generic[BuilderConfigBound, PluginManagerBound]):
         """
 
     @classmethod
-    def get_config_class(cls) -> type[BuilderConfig]:
+    def get_config_class(cls) -> type[BuilderConfigBound]:
         """
         Must return a subclass of [BuilderConfig](../utilities.md#hatchling.builders.config.BuilderConfig).
         """
-        return BuilderConfig
+        return cast(type[BuilderConfigBound], BuilderConfig)
 
     @staticmethod
     def normalize_file_name_component(file_name: str) -> str:
         """
         https://peps.python.org/pep-0427/#escaping-and-unicode
         """
-        return re.sub(r'[^\w\d.]+', '_', file_name, flags=re.UNICODE)
+        return re.sub(r"[^\w\d.]+", "_", file_name, flags=re.UNICODE)

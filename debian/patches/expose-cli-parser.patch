@@ -1,0 +1,31 @@
+From: Nico Della Torre <nicoz91@ubuntu.com>
+Date: Wed, 21 Oct 2026 18:07:10 +0200
+Subject: Expose the hatchling CLI parser
+
+Allows generating the manual page with argparse-manpage.
+
+Forwarded: https://github.com/pypa/hatch/pull/2476
+---
+--- a/src/hatchling/cli/__init__.py
++++ b/src/hatchling/cli/__init__.py
+@@ -6,7 +6,7 @@ from hatchling.cli.metadata import metad
+ from hatchling.cli.version import version_command
+ 
+ 
+-def hatchling() -> int:
++def get_parser() -> argparse.ArgumentParser:
+     parser = argparse.ArgumentParser(prog="hatchling", allow_abbrev=False)
+     subparsers = parser.add_subparsers()
+ 
+@@ -17,6 +17,11 @@ def hatchling() -> int:
+     metadata_command(subparsers, defaults)
+     version_command(subparsers, defaults)
+ 
++    return parser
++
++
++def hatchling() -> int:
++    parser = get_parser()
+     kwargs = vars(parser.parse_args())
+     try:
+         command = kwargs.pop("func")

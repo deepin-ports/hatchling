@@ -16,9 +16,11 @@ class BuildHookInterface(Generic[BuilderConfigBound]):  # no cov
     ```python tab="plugin.py"
     from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
+    from .builder import SpecialBuilderConfig
 
-    class SpecialBuildHook(BuildHookInterface):
-        PLUGIN_NAME = 'special'
+
+    class SpecialBuildHook(BuildHookInterface[SpecialBuilderConfig]):
+        PLUGIN_NAME = "special"
         ...
     ```
 
@@ -34,7 +36,7 @@ class BuildHookInterface(Generic[BuilderConfigBound]):  # no cov
     ```
     """
 
-    PLUGIN_NAME = ''
+    PLUGIN_NAME = ""
     """The name used for selection."""
 
     def __init__(
